@@ -29,6 +29,7 @@ jobs:
     outputs:
       tag: ${{ steps.version.outputs.tag }}
       apk: ${{ steps.sign.outputs.apk }}
+      signing: ${{ steps.sign.outputs.signing }}
     steps:
       - name: Check out
         uses: actions/checkout@v7
@@ -107,6 +108,7 @@ jobs:
 
           if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ]; then
             echo "Signing with the release keystore from repository secrets."
+            echo "signing=release" >> "$GITHUB_OUTPUT"
             echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
             export KS_PASS="$KEYSTORE_PASSWORD"
             export K_PASS="${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
@@ -119,6 +121,7 @@ jobs:
             rm -f "$RUNNER_TEMP/release.jks"
           else
             echo "No signing secrets found: using debug signing."
+            echo "signing=debug" >> "$GITHUB_OUTPUT"
             cp "$IN" "$OUT"
             # Flutter's default Android setup signs release builds with the
             # debug key. If this build is somehow unsigned, sign it with a
@@ -154,11 +157,29 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Full history, so the release notes can see every commit since the last tag.
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
       - name: Download APK
         uses: actions/download-artifact@v8
         with:
           name: tally-apk
           path: dist
+
+      # Only this job sees the API key. Without it (or if the request fails)
+      # the notes fall back to a plain list of commits.
+      - name: Write release notes
+        env:
+          TAG: ${{ needs.build.outputs.tag }}
+          REPO: ${{ github.repository }}
+          SIGNING: ${{ needs.build.outputs.signing }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CHANGELOG_MODEL: ${{ vars.CHANGELOG_MODEL }}
+        run: python3 tool/release_notes.py notes.md
 
       - name: Create the release
         env:
@@ -169,12 +190,13 @@ jobs:
         run: |
           set -euo pipefail
           if gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
-            echo "Release $TAG already exists: replacing its APK."
+            echo "Release $TAG already exists: replacing its APK and notes."
             gh release upload "$TAG" dist/*.apk --clobber --repo "$REPO"
+            gh release edit "$TAG" --notes-file notes.md --repo "$REPO"
           else
             gh release create "$TAG" dist/*.apk \
               --repo "$REPO" \
               --target "$SHA" \
               --title "Tally $TAG" \
-              --generate-notes
+              --notes-file notes.md
           fi
