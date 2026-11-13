@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:material_ui/material_ui.dart';
 
 import '../../logic/budget_math.dart';
+import '../../logic/dates.dart';
 import '../../logic/money.dart';
 import '../theme.dart';
 import 'common.dart';
@@ -57,7 +58,7 @@ class MonthBar extends StatelessWidget {
                     ),
                   ),
                   TweenAnimationBuilder<double>(
-                    tween: Tween<double>(end: fill),
+                    tween: Tween<double>(begin: 0, end: fill),
                     duration: motion(context, 500),
                     curve: Curves.easeOutCubic,
                     builder: (context, value, _) => Container(
@@ -122,7 +123,7 @@ class SimpleBar extends StatelessWidget {
               ),
             ),
             TweenAnimationBuilder<double>(
-              tween: Tween<double>(end: f),
+              tween: Tween<double>(begin: 0, end: f),
               duration: motion(context, 400),
               curve: Curves.easeOutCubic,
               builder: (context, value, _) => Container(
@@ -155,8 +156,11 @@ class DonutChart extends StatelessWidget {
     required this.center,
     required this.semanticsLabel,
     this.size = 190,
+    this.progress = 1,
   });
 
+  /// 0 to 1: how much of the ring is drawn, so it can sweep in.
+  final double progress;
   final List<DonutSlice> slices;
   final Color trackColor;
   final Widget center;
@@ -176,7 +180,7 @@ class DonutChart extends StatelessWidget {
             ExcludeSemantics(
               child: CustomPaint(
                 size: Size(size, size),
-                painter: _DonutPainter(slices, trackColor),
+                painter: _DonutPainter(slices, trackColor, progress),
               ),
             ),
             Padding(
@@ -191,10 +195,11 @@ class DonutChart extends StatelessWidget {
 }
 
 class _DonutPainter extends CustomPainter {
-  _DonutPainter(this.slices, this.trackColor);
+  _DonutPainter(this.slices, this.trackColor, this.progress);
 
   final List<DonutSlice> slices;
   final Color trackColor;
+  final double progress;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -214,7 +219,7 @@ class _DonutPainter extends CustomPainter {
     final gap = slices.length > 1 ? 0.045 : 0.0;
     var start = -math.pi / 2;
     for (final s in slices) {
-      final sweep = s.value / total * math.pi * 2;
+      final sweep = s.value / total * math.pi * 2 * progress;
       paint.color = s.color;
       canvas.drawArc(
         arcRect,
@@ -229,7 +234,9 @@ class _DonutPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_DonutPainter old) =>
-      old.trackColor != trackColor || !_sameSlices(old.slices, slices);
+      old.trackColor != trackColor ||
+      old.progress != progress ||
+      !_sameSlices(old.slices, slices);
 
   static bool _sameSlices(List<DonutSlice> a, List<DonutSlice> b) {
     if (a.length != b.length) return false;
@@ -240,11 +247,18 @@ class _DonutPainter extends CustomPainter {
   }
 }
 
-/// Seven bars, one per day. Tap a bar to read its amount.
+/// One bar per day of the week, Sunday first. Bars grow in one after another.
+/// Tap a bar to read its amount; days still to come are dimmed.
 class WeekBars extends StatefulWidget {
-  const WeekBars({super.key, required this.days, required this.format});
+  const WeekBars({
+    super.key,
+    required this.days,
+    required this.today,
+    required this.format,
+  });
 
   final List<DayTotal> days;
+  final DateTime today;
   final String Function(int cents) format;
 
   @override
@@ -259,7 +273,10 @@ class _WeekBarsState extends State<WeekBars> {
     final cs = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     final days = widget.days;
-    final selected = _selected ?? days.length - 1;
+    final todayKey = dayKey(widget.today);
+    var todayIndex = days.indexWhere((d) => dayKey(d.day) == todayKey);
+    if (todayIndex < 0) todayIndex = days.length - 1;
+    final selected = _selected ?? todayIndex;
     final peak = days.fold<int>(0, (m, d) => math.max(m, d.cents));
     const chartHeight = 120.0;
 
@@ -268,80 +285,105 @@ class _WeekBarsState extends State<WeekBars> {
       children: [
         for (var i = 0; i < days.length; i++)
           Expanded(
-            child: Semantics(
-              button: true,
-              selected: i == selected,
-              label:
-                  '${weekdayShort[days[i].day.weekday - 1]}, ${widget.format(days[i].cents)} spent',
-              excludeSemantics: true,
-              onTap: () => setState(() => _selected = i),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: () => setState(() => _selected = i),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 3),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        height: 22,
-                        child: i == selected
-                            ? FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Text(
-                                  widget.format(days[i].cents),
-                                  style: text.labelMedium?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    fontFeatures: tabularFigures,
-                                  ),
-                                ),
-                              )
-                            : null,
-                      ),
-                      SizedBox(
-                        height: chartHeight,
-                        child: Align(
-                          alignment: Alignment.bottomCenter,
-                          child: TweenAnimationBuilder<double>(
-                            tween: Tween<double>(
-                              end: peak == 0
-                                  ? 6.0
-                                  : math.max(
-                                      6.0,
-                                      chartHeight * days[i].cents / peak,
-                                    ),
-                            ),
-                            duration: motion(context, 400),
-                            curve: Curves.easeOutCubic,
-                            builder: (context, h, _) => Container(
-                              height: h,
-                              decoration: BoxDecoration(
-                                color: i == selected
-                                    ? cs.primary
-                                    : cs.primary.withValues(alpha: 0.28),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        weekdayShort[days[i].day.weekday - 1].substring(0, 1),
-                        style: text.labelLarge?.copyWith(
-                          color: i == selected
-                              ? cs.onSurface
-                              : cs.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                    ],
-                  ),
-                ),
-              ),
+            child: _bar(
+              context,
+              i,
+              selected,
+              peak,
+              chartHeight,
+              cs,
+              text,
+              todayKey,
             ),
           ),
       ],
+    );
+  }
+
+  Widget _bar(
+    BuildContext context,
+    int i,
+    int selected,
+    int peak,
+    double chartHeight,
+    ColorScheme cs,
+    TextTheme text,
+    int todayKey,
+  ) {
+    final day = widget.days[i];
+    final upcoming = dayKey(day.day) > todayKey;
+    final isSelected = i == selected;
+    final name = weekdayShort[day.day.weekday - 1];
+    final target = peak == 0
+        ? 6.0
+        : math.max(6.0, chartHeight * day.cents / peak);
+    final color = upcoming
+        ? cs.outlineVariant.withValues(alpha: 0.6)
+        : (isSelected ? cs.primary : cs.primary.withValues(alpha: 0.28));
+    return Semantics(
+      button: !upcoming,
+      selected: isSelected,
+      label: upcoming
+          ? '$name, still to come'
+          : '$name, ${widget.format(day.cents)} spent',
+      excludeSemantics: true,
+      onTap: upcoming ? null : () => setState(() => _selected = i),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: upcoming ? null : () => setState(() => _selected = i),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 3),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: 22,
+                child: isSelected && !upcoming
+                    ? FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          widget.format(day.cents),
+                          style: text.labelMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            fontFeatures: tabularFigures,
+                          ),
+                        ),
+                      )
+                    : null,
+              ),
+              SizedBox(
+                height: chartHeight,
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween<double>(begin: 0, end: target),
+                    // Each bar takes a little longer, so they rise in a wave.
+                    duration: motion(context, 450 + i * 80),
+                    curve: Curves.easeOutBack,
+                    builder: (context, h, _) => Container(
+                      height: math.max(0.0, h),
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                name.substring(0, 1),
+                style: text.labelLarge?.copyWith(
+                  color: isSelected && !upcoming
+                      ? cs.onSurface
+                      : cs.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
