@@ -28,7 +28,6 @@ jobs:
       contents: read
     outputs:
       tag: ${{ steps.version.outputs.tag }}
-      apk: ${{ steps.sign.outputs.apk }}
       signing: ${{ steps.sign.outputs.signing }}
     steps:
       - name: Check out
@@ -84,13 +83,17 @@ jobs:
       - name: Test
         run: flutter test
 
-      - name: Build release APK
+      # One APK per CPU type instead of one fat APK holding all three: the app is
+      # identical, but each file is roughly a third of the size. Debug symbols
+      # are split out of the app (kept as a separate artifact below).
+      - name: Build release APKs
         run: >
-          flutter build apk --release
+          flutter build apk --release --split-per-abi
+          --split-debug-info=build/symbols
           --build-name=${{ steps.version.outputs.build_name }}
           --build-number=${{ github.run_number }}
 
-      - name: Sign and name the APK
+      - name: Sign and name the APKs
         id: sign
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -102,52 +105,97 @@ jobs:
           set -euo pipefail
           SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
           BUILD_TOOLS="$(ls -d "$SDK"/build-tools/* | sort -V | tail -n1)"
-          IN="build/app/outputs/flutter-apk/app-release.apk"
+          OUTDIR="build/app/outputs/flutter-apk"
           mkdir -p dist
-          OUT="dist/tally-${VERSION}.apk"
 
           if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ]; then
             echo "Signing with the release keystore from repository secrets."
             echo "signing=release" >> "$GITHUB_OUTPUT"
             echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            KS="$RUNNER_TEMP/release.jks"
+            KS_ALIAS="$KEY_ALIAS"
             export KS_PASS="$KEYSTORE_PASSWORD"
             export K_PASS="${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
-            "$BUILD_TOOLS/apksigner" sign \
-              --ks "$RUNNER_TEMP/release.jks" \
-              --ks-key-alias "$KEY_ALIAS" \
-              --ks-pass env:KS_PASS \
-              --key-pass env:K_PASS \
-              --out "$OUT" "$IN"
-            rm -f "$RUNNER_TEMP/release.jks"
           else
             echo "No signing secrets found: using debug signing."
             echo "signing=debug" >> "$GITHUB_OUTPUT"
-            cp "$IN" "$OUT"
-            # Flutter's default Android setup signs release builds with the
-            # debug key. If this build is somehow unsigned, sign it with a
-            # throwaway debug key so the APK still installs.
-            if ! "$BUILD_TOOLS/apksigner" verify "$OUT" > /dev/null 2>&1; then
-              keytool -genkeypair -keystore "$RUNNER_TEMP/debug.jks" \
-                -storepass android -keypass android -alias androiddebugkey \
-                -keyalg RSA -keysize 2048 -validity 10000 \
-                -dname "CN=Android Debug,O=Android,C=US"
-              "$BUILD_TOOLS/apksigner" sign \
-                --ks "$RUNNER_TEMP/debug.jks" --ks-key-alias androiddebugkey \
-                --ks-pass pass:android --key-pass pass:android \
-                --out "$OUT.signed" "$OUT"
-              mv "$OUT.signed" "$OUT"
-            fi
+            KS=""
           fi
 
-          "$BUILD_TOOLS/apksigner" verify --print-certs "$OUT"
-          echo "apk=$OUT" >> "$GITHUB_OUTPUT"
+          COUNT=0
+          for IN in "$OUTDIR"/app-*-release.apk; do
+            [ -e "$IN" ] || continue
+            ABI="$(basename "$IN" | sed -E 's/^app-(.*)-release\.apk$/\1/')"
+            OUT="dist/tally-${VERSION}-${ABI}.apk"
+            if [ -n "$KS" ]; then
+              "$BUILD_TOOLS/apksigner" sign \
+                --ks "$KS" --ks-key-alias "$KS_ALIAS" \
+                --ks-pass env:KS_PASS --key-pass env:K_PASS \
+                --out "$OUT" "$IN"
+            else
+              cp "$IN" "$OUT"
+              # Flutter's default Android setup signs release builds with the
+              # debug key. If a build is somehow unsigned, sign it with a
+              # throwaway debug key so it still installs.
+              if ! "$BUILD_TOOLS/apksigner" verify "$OUT" > /dev/null 2>&1; then
+                if [ ! -f "$RUNNER_TEMP/debug.jks" ]; then
+                  keytool -genkeypair -keystore "$RUNNER_TEMP/debug.jks" \
+                    -storepass android -keypass android -alias androiddebugkey \
+                    -keyalg RSA -keysize 2048 -validity 10000 \
+                    -dname "CN=Android Debug,O=Android,C=US"
+                fi
+                "$BUILD_TOOLS/apksigner" sign \
+                  --ks "$RUNNER_TEMP/debug.jks" --ks-key-alias androiddebugkey \
+                  --ks-pass pass:android --key-pass pass:android \
+                  --out "$OUT.signed" "$OUT"
+                mv "$OUT.signed" "$OUT"
+              fi
+            fi
+            "$BUILD_TOOLS/apksigner" verify --print-certs "$OUT"
+            COUNT=$((COUNT + 1))
+          done
+          rm -f "$RUNNER_TEMP/release.jks"
+          if [ "$COUNT" -eq 0 ]; then
+            echo "No APKs were built." >&2
+            exit 1
+          fi
+          echo "Signed $COUNT APKs:"
+          ls -l dist
 
-      - name: Upload APK
+      # Shows where the bytes go. Look at the run summary page.
+      - name: Size report
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import glob, os, zipfile
+          print("## APK sizes\n")
+          print("| File | Size |\n| --- | --- |")
+          for f in sorted(glob.glob("dist/*.apk")):
+              print(f"| {os.path.basename(f)} | {os.path.getsize(f) / 1048576:.1f} MB |")
+          arm = sorted(glob.glob("dist/*arm64-v8a.apk"))
+          if arm:
+              z = zipfile.ZipFile(arm[0])
+              rows = sorted(z.infolist(), key=lambda i: i.compress_size, reverse=True)[:12]
+              print(f"\n### Largest files inside {os.path.basename(arm[0])}\n")
+              print("| Entry | Stored | Original |\n| --- | --- | --- |")
+              for i in rows:
+                  print(f"| `{i.filename}` | {i.compress_size / 1048576:.2f} MB | {i.file_size / 1048576:.2f} MB |")
+          PY
+
+      - name: Upload APKs
         uses: actions/upload-artifact@v7
         with:
           name: tally-apk
           path: dist/*.apk
           if-no-files-found: error
+
+      # Needed to read crash stack traces from this exact build
+      # (flutter symbolize). Not attached to the release.
+      - name: Upload debug symbols
+        uses: actions/upload-artifact@v7
+        with:
+          name: tally-symbols
+          path: build/symbols
+          if-no-files-found: warn
 
   release:
     name: Publish GitHub Release
