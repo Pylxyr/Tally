@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -117,14 +119,21 @@ class EmptyState extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           ExcludeSemantics(
-            child: Container(
-              width: 88,
-              height: 88,
-              decoration: BoxDecoration(
-                color: cs.primaryContainer,
-                shape: BoxShape.circle,
+            child: TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 0, end: 1),
+              duration: motion(context, 700),
+              curve: Curves.elasticOut,
+              builder: (context, t, child) =>
+                  Transform.scale(scale: t.clamp(0.0, 1.4), child: child),
+              child: Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  color: cs.primaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 40, color: cs.onPrimaryContainer),
               ),
-              child: Icon(icon, size: 40, color: cs.onPrimaryContainer),
             ),
           ),
           const SizedBox(height: 20),
@@ -377,4 +386,135 @@ Future<bool> confirm(
     ),
   );
   return result ?? false;
+}
+
+/// Slides and fades its child in once, a moment after it first appears.
+/// Give it a new key to play the entrance again (the Home and Budgets tabs do
+/// this each time they are opened). [index] staggers siblings.
+class StaggerIn extends StatefulWidget {
+  const StaggerIn({super.key, required this.index, required this.child});
+
+  final int index;
+  final Widget child;
+
+  @override
+  State<StaggerIn> createState() => _StaggerInState();
+}
+
+class _StaggerInState extends State<StaggerIn>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 560),
+  );
+  Timer? _timer;
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _controller.value = 1;
+      return;
+    }
+    _timer = Timer(Duration(milliseconds: 70 * widget.index), () {
+      if (mounted) _controller.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      child: widget.child,
+      builder: (context, child) {
+        final t = Curves.easeOutCubic.transform(_controller.value);
+        return Opacity(
+          opacity: t,
+          child: Transform.translate(
+            offset: Offset(0, (1 - t) * 32),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Fades and lifts a whole tab each time it becomes the selected one, without
+/// rebuilding it (so scroll position and search text are kept).
+class TabReveal extends StatefulWidget {
+  const TabReveal({super.key, required this.active, required this.child});
+
+  final bool active;
+  final Widget child;
+
+  @override
+  State<TabReveal> createState() => _TabRevealState();
+}
+
+class _TabRevealState extends State<TabReveal>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 380),
+    value: 1,
+  );
+
+  @override
+  void didUpdateWidget(TabReveal old) {
+    super.didUpdateWidget(old);
+    if (widget.active && !old.active) {
+      if (MediaQuery.disableAnimationsOf(context)) {
+        _controller.value = 1;
+      } else {
+        _controller.forward(from: 0);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      child: widget.child,
+      builder: (context, child) {
+        final t = Curves.easeOutCubic.transform(_controller.value);
+        return Opacity(
+          opacity: t,
+          child: Transform.translate(
+            offset: Offset(0, (1 - t) * 24),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Wraps [items] so they rise in one after another. Change [epoch] to replay.
+List<Widget> staggered(String prefix, int epoch, List<Widget> items) {
+  return [
+    for (var i = 0; i < items.length; i++)
+      StaggerIn(
+        key: ValueKey('$prefix-$i-$epoch'),
+        index: i < 6 ? i : 6,
+        child: items[i],
+      ),
+  ];
 }
