@@ -54,7 +54,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
             constraints: const BoxConstraints(maxWidth: 560),
             child: ListView(
               padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
-              children: [
+              children: staggered('welcome', 0, [
                 ExcludeSemantics(
                   child: Container(
                     width: 64,
@@ -112,7 +112,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   onPressed: () => _finish(skipBudget: true),
                   child: const Text('Skip the budget for now'),
                 ),
-              ],
+              ]),
             ),
           ),
         ),
