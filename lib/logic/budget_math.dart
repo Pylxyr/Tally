@@ -110,23 +110,20 @@ class DayTotal {
   final int cents;
 }
 
-/// Spending per day for the [days] days ending today, oldest first.
-List<DayTotal> lastDaysSpending(
-  Iterable<Txn> txns,
-  DateTime today, {
-  int days = 7,
-}) {
-  final start = addDays(today, -(days - 1));
-  final first = dayKey(start);
-  final last = dayKey(today);
+/// Spending for each day of the week containing [today], Sunday first.
+/// Always seven entries; days after [today] are zero.
+List<DayTotal> weekSpending(Iterable<Txn> txns, DateTime today) {
+  final start = startOfWeek(today);
   final totals = <int, int>{};
+  final first = dayKey(start);
+  final last = dayKey(addDays(start, 6));
   for (final t in txns) {
     if (t.kind != TxnKind.expense) continue;
     final k = dayKey(t.date);
     if (k >= first && k <= last) totals[k] = (totals[k] ?? 0) + t.amountCents;
   }
   return [
-    for (var i = 0; i < days; i++)
+    for (var i = 0; i < 7; i++)
       DayTotal(addDays(start, i), totals[dayKey(addDays(start, i))] ?? 0),
   ];
 }
