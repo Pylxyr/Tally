@@ -10,7 +10,10 @@ import 'categories.dart';
 import 'recurring.dart';
 
 class BudgetsScreen extends StatelessWidget {
-  const BudgetsScreen({super.key});
+  const BudgetsScreen({super.key, required this.epoch});
+
+  /// Changes each time the Budgets tab is opened, replaying the entrance.
+  final int epoch;
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +33,7 @@ class BudgetsScreen extends StatelessWidget {
       bottom: false,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
-        children: [
+        children: staggered('budgets', epoch, [
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 16),
             child: Semantics(
@@ -144,7 +147,7 @@ class BudgetsScreen extends StatelessWidget {
               ],
             ),
           ),
-        ],
+        ]),
       ),
     );
   }
