@@ -12,9 +12,16 @@ import '../widgets/charts.dart';
 import '../widgets/common.dart';
 
 class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({super.key, required this.onOpenTracker});
+  const DashboardScreen({
+    super.key,
+    required this.onOpenTracker,
+    required this.epoch,
+  });
 
   final VoidCallback onOpenTracker;
+
+  /// Changes each time the Home tab is opened, replaying the entrance.
+  final int epoch;
 
   @override
   Widget build(BuildContext context) {
@@ -29,56 +36,84 @@ class DashboardScreen extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(4, 0, 4, 16),
-            child: Semantics(
-              header: true,
-              child: Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(text: '${monthNames[today.month - 1]} '),
-                    TextSpan(
-                      text: '${today.year}',
-                      style: TextStyle(
-                        color: cs.onSurfaceVariant,
-                        fontWeight: FontWeight.w500,
+          StaggerIn(
+            key: ValueKey('home-title-$epoch'),
+            index: 0,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(4, 0, 4, 16),
+              child: Semantics(
+                header: true,
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(text: '${monthNames[today.month - 1]} '),
+                      TextSpan(
+                        text: '${today.year}',
+                        style: TextStyle(
+                          color: cs.onSurfaceVariant,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
+                  style: text.headlineMedium,
                 ),
-                style: text.headlineMedium,
               ),
             ),
           ),
-          const _HeroCard(),
+          StaggerIn(
+            key: ValueKey('home-hero-$epoch'),
+            index: 1,
+            child: const _HeroCard(),
+          ),
           const SizedBox(height: 16),
           if (!hasAny)
-            Card(
-              child: EmptyState(
-                icon: Icons.receipt_long_rounded,
-                title: 'No spending yet',
-                message: 'Add your first expense to see how your month is going. Everything stays on this phone.',
-                actions: [
-                  FilledButton.icon(
-                    onPressed: () => showTxnSheet(context),
-                    icon: const Icon(Icons.add_rounded),
-                    label: const Text('Add an expense'),
-                  ),
-                  OutlinedButton(
-                    onPressed: state.loadSampleData,
-                    child: const Text('Load sample data'),
-                  ),
-                ],
+            StaggerIn(
+              key: ValueKey('home-empty-$epoch'),
+              index: 2,
+              child: Card(
+                child: EmptyState(
+                  icon: Icons.receipt_long_rounded,
+                  title: 'No spending yet',
+                  message: 'Add your first expense to see how your month is going. Everything stays on this phone.',
+                  actions: [
+                    FilledButton.icon(
+                      onPressed: () => showTxnSheet(context),
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Add an expense'),
+                    ),
+                    OutlinedButton(
+                      onPressed: state.loadSampleData,
+                      child: const Text('Load sample data'),
+                    ),
+                  ],
+                ),
               ),
             )
           else ...[
-            const _CategoryDonutCard(),
+            StaggerIn(
+              key: ValueKey('home-donut-$epoch'),
+              index: 2,
+              child: const _CategoryDonutCard(),
+            ),
             const SizedBox(height: 16),
-            const _TopCategoriesCard(),
+            StaggerIn(
+              key: ValueKey('home-top-$epoch'),
+              index: 3,
+              child: const _TopCategoriesCard(),
+            ),
             const SizedBox(height: 16),
-            const _WeekCard(),
+            StaggerIn(
+              key: ValueKey('home-week-$epoch'),
+              index: 4,
+              child: const _WeekCard(),
+            ),
             const SizedBox(height: 16),
-            _RecentCard(onSeeAll: onOpenTracker),
+            StaggerIn(
+              key: ValueKey('home-recent-$epoch'),
+              index: 5,
+              child: _RecentCard(onSeeAll: onOpenTracker),
+            ),
           ],
         ],
       ),
@@ -99,34 +134,51 @@ class _HeroCard extends StatelessWidget {
     final budget = state.settings.monthlyBudgetCents;
 
     if (budget <= 0) {
-      return Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
+      // A slim, tappable banner rather than a full-size card.
+      return Semantics(
+        button: true,
+        label: 'Set a monthly budget, to see what you can spend today',
+        excludeSemantics: true,
+        onTap: () => editMonthlyBudget(context),
+        child: Material(
           color: cs.primary,
-          borderRadius: BorderRadius.circular(Radii.hero),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Set a monthly budget',
-              style: text.headlineSmall?.copyWith(color: cs.onPrimary),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Then Tally can tell you how much you can still spend today.',
-              style: text.bodyLarge?.copyWith(color: cs.onPrimary),
-            ),
-            const SizedBox(height: 16),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: cs.onPrimary,
-                foregroundColor: cs.primary,
+          borderRadius: BorderRadius.circular(Radii.card),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => editMonthlyBudget(context),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 64),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 10, 12, 10),
+                child: Row(
+                  children: [
+                    Icon(Icons.savings_rounded, color: cs.onPrimary),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Set a monthly budget',
+                            style: text.titleMedium?.copyWith(
+                              color: cs.onPrimary,
+                            ),
+                          ),
+                          Text(
+                            'See what you can spend today',
+                            style: text.bodySmall?.copyWith(
+                              color: cs.onPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right_rounded, color: cs.onPrimary),
+                  ],
+                ),
               ),
-              onPressed: () => editMonthlyBudget(context),
-              child: const Text('Set budget'),
             ),
-          ],
+          ),
         ),
       );
     }
@@ -198,7 +250,7 @@ class _HeroCard extends StatelessWidget {
                       fit: BoxFit.scaleDown,
                       alignment: Alignment.centerLeft,
                       child: TweenAnimationBuilder<double>(
-                        tween: Tween<double>(end: units.toDouble()),
+                        tween: Tween<double>(begin: 0, end: units.toDouble()),
                         duration: motion(context, 450),
                         curve: Curves.easeOutCubic,
                         builder: (context, value, _) => Text(
@@ -296,39 +348,47 @@ class _CategoryDonutCard extends StatelessWidget {
             Text('Where it went', style: text.titleLarge),
             const SizedBox(height: 16),
             Center(
-              child: DonutChart(
-                slices: slices,
-                trackColor: cs.surfaceContainer,
-                semanticsLabel: summary,
-                center: ranked.isEmpty
-                    ? Text(
-                        'Nothing spent yet',
-                        textAlign: TextAlign.center,
-                        style: text.bodyMedium?.copyWith(
-                          color: cs.onSurfaceVariant,
-                        ),
-                      )
-                    : Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Spent',
-                            style: text.labelLarge?.copyWith(
-                              color: cs.onSurfaceVariant,
-                            ),
+              child: TweenAnimationBuilder<double>(
+                // A new total replays the sweep, so adding an expense is visible.
+                key: ValueKey(total),
+                tween: Tween<double>(begin: 0, end: 1),
+                duration: motion(context, 1000),
+                curve: Curves.easeOutCubic,
+                builder: (context, progress, _) => DonutChart(
+                  progress: progress,
+                  slices: slices,
+                  trackColor: cs.surfaceContainer,
+                  semanticsLabel: summary,
+                  center: ranked.isEmpty
+                      ? Text(
+                          'Nothing spent yet',
+                          textAlign: TextAlign.center,
+                          style: text.bodyMedium?.copyWith(
+                            color: cs.onSurfaceVariant,
                           ),
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              state.money(total),
-                              style: text.titleLarge?.copyWith(
-                                fontSize: 24,
-                                fontFeatures: tabularFigures,
+                        )
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Spent',
+                              style: text.labelLarge?.copyWith(
+                                color: cs.onSurfaceVariant,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                state.money(total),
+                                style: text.titleLarge?.copyWith(
+                                  fontSize: 24,
+                                  fontFeatures: tabularFigures,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
               ),
             ),
           ],
@@ -466,7 +526,7 @@ class _TopRow extends StatelessWidget {
   }
 }
 
-// ---- last 7 days ----------------------------------------------------------------
+// ---- this week ------------------------------------------------------------------
 
 class _WeekCard extends StatelessWidget {
   const _WeekCard();
@@ -476,7 +536,7 @@ class _WeekCard extends StatelessWidget {
     final state = AppScope.of(context);
     final text = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
-    final days = lastDaysSpending(state.txns, state.today);
+    final days = weekSpending(state.txns, state.today);
     final total = days.fold<int>(0, (sum, d) => sum + d.cents);
     return Card(
       child: Padding(
@@ -488,7 +548,7 @@ class _WeekCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Row(
                 children: [
-                  Expanded(child: Text('Last 7 days', style: text.titleLarge)),
+                  Expanded(child: Text('This week', style: text.titleLarge)),
                   Text(
                     state.money(total),
                     style: text.titleMedium?.copyWith(
@@ -500,7 +560,7 @@ class _WeekCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            WeekBars(days: days, format: state.money),
+            WeekBars(days: days, today: state.today, format: state.money),
           ],
         ),
       ),
