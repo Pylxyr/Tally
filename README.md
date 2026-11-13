@@ -3,7 +3,7 @@
 A private expense and budget tracker for Android, built with Flutter.
 
 - **Safe to spend today** on the home screen: (budget minus spending before today) divided by the days left in the month, minus today's spending. It turns coral when negative.
-- Month progress bar with a tick for an even spending pace, spending-by-category donut, last 7 days, top categories, recent activity.
+- Month progress bar with a tick for an even spending pace, spending-by-category donut, this week's spending (Sunday to Saturday), top categories, recent activity.
 - Tracker with month navigation, search and filters. Budgets with optional per-category limits. Custom categories. Recurring bills. CSV export.
 - All data stays on the phone, in the app's private storage. No accounts. The release app does not ask for the internet permission.
 
@@ -32,7 +32,7 @@ Built for Flutter 3.50 (Dart 3.14). The UI uses the standalone `material_ui` pac
 git tag v1.0.0 && git push --tags
 ```
 
-The **Release APK** workflow runs: it sets up Java and Flutter, generates the Android project, runs `flutter pub get`, `flutter analyze` and `flutter test`, builds a release APK, names it `tally-1.0.0.apk` and attaches it to a GitHub Release with AI-written release notes (see below).
+The **Release APK** workflow runs: it sets up Java and Flutter, generates the Android project, runs `flutter pub get`, `flutter analyze` and `flutter test`, builds release APKs (one per CPU type), names them `tally-1.0.0-<cpu>.apk` and attaches it to a GitHub Release with AI-written release notes (see below).
 
 You can also run it by hand: **Actions → Release APK → Run workflow**. Leave the tag empty to use the version in `pubspec.yaml`, or type one such as `v1.0.1`.
 
@@ -46,16 +46,18 @@ Add one repository secret to turn the AI notes on: **`ANTHROPIC_API_KEY`**. To u
 
 ## 3. Where the APK appears
 
-- **Releases** on the right side of your repo's front page, under **Assets**: `tally-1.0.0.apk`.
-- Also on the workflow run page under **Artifacts** (`tally-apk`).
+- **Releases** on the right side of your repo's front page, under **Assets**: three files, `tally-1.0.0-arm64-v8a.apk`, `tally-1.0.0-armeabi-v7a.apk` and `tally-1.0.0-x86_64.apk`. They are the same app built for different processors.
+- Also on the workflow run page under **Artifacts** (`tally-apk`), together with the run's **summary** page, which lists each file's size and the biggest things inside the APK.
+
+**Which one is mine?** `arm64-v8a` fits almost every phone made since about 2017. Use `armeabi-v7a` only for an older 32-bit phone, and `x86_64` for emulators and Chromebooks. If the app says it can't be installed, try the other file.
 
 ## 4. Install on your phone
 
-1. On the phone, open your repo's **Releases** page in a browser and download `tally-1.0.0.apk`. (For a private repo, sign in to GitHub in that browser.)
+1. On the phone, open your repo's **Releases** page in a browser and download `tally-1.0.0-arm64-v8a.apk`. (For a private repo, sign in to GitHub in that browser.)
 2. Open the downloaded file. Android will ask you to allow installs from that browser ("Install unknown apps"). Allow it, then go back and tap Install.
 3. If Play Protect warns about an unknown app, choose to install anyway. This is expected for an app that is not from the Play Store.
 
-Or from a computer with USB debugging on: `adb install tally-1.0.0.apk`.
+Or from a computer with USB debugging on: `adb install tally-1.0.0-arm64-v8a.apk`.
 
 **Important:** without your own signing key (next section) every release is signed with a different throwaway debug key. Android will refuse to install a new release over an older one. Uninstall the old app first (which deletes its data, so export a CSV first), or set up your own key once and every later release will update in place.
 
@@ -116,6 +118,14 @@ flutter run
 - a check that the main manifest does not request internet access.
 
 CI and your machine run the same script, so they produce the same result and the project never goes stale against a new Flutter. If you would rather commit `android/`, run the script, delete the `/android/` line from `.gitignore`, and commit it; the script still works on top of it.
+
+## App size
+
+Flutter apps carry the Flutter engine as native code, one copy per CPU type. A single "fat" APK holds three copies, which is why it was about 48 MB. The workflow now builds one APK per CPU type (`--split-per-abi`), so the file you install holds one copy. The app itself is identical, so nothing is lost. Expect roughly a third of the old size; the run summary page shows the exact numbers.
+
+Debug symbols are also split out of the app (`--split-debug-info`) and kept as a separate `tally-symbols` artifact on each run, so crash stack traces can still be read with `flutter symbolize`.
+
+Things deliberately not done, because each one costs something: dropping 32-bit or x86 builds (some devices could no longer install), and compressing native libraries inside the APK (smaller download, larger installed app and slower install).
 
 ## Things worth knowing
 
