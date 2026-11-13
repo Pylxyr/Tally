@@ -229,8 +229,11 @@ def main():
     install = [
         "## Install",
         "",
-        f"Download **{APP.lower()}-{version}.apk** below on your phone and open it. "
+        f"Download **{APP.lower()}-{version}-arm64-v8a.apk** below on your phone and open it. "
         "Android will ask you to allow installs from your browser or file manager.",
+        "",
+        "Which file? `arm64-v8a` fits almost every phone made since about 2017. "
+        "`armeabi-v7a` is only for older 32-bit phones, and `x86_64` is for emulators and Chromebooks.",
         "",
     ]
     if signing == "release":
