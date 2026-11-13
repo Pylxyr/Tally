@@ -6,6 +6,7 @@ import 'screens/dashboard.dart';
 import 'screens/settings.dart';
 import 'screens/tracker.dart';
 import 'sheets/txn_sheet.dart';
+import 'widgets/common.dart';
 
 /// The main screen: four tabs and an Add button within thumb reach.
 class Shell extends StatefulWidget {
@@ -17,6 +18,17 @@ class Shell extends StatefulWidget {
 
 class _ShellState extends State<Shell> with WidgetsBindingObserver {
   int _index = 0;
+
+  /// Bumped on every tab change so Home and Budgets replay their entrance.
+  int _epoch = 0;
+
+  void _go(int i) {
+    if (i == _index) return;
+    setState(() {
+      _index = i;
+      _epoch++;
+    });
+  }
 
   @override
   void initState() {
@@ -58,16 +70,16 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     return PopScope(
       canPop: _index == 0,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) setState(() => _index = 0);
+        if (!didPop) _go(0);
       },
       child: Scaffold(
         body: IndexedStack(
           index: _index,
           children: [
-            DashboardScreen(onOpenTracker: () => setState(() => _index = 1)),
-            const TrackerScreen(),
-            const BudgetsScreen(),
-            const SettingsScreen(),
+            DashboardScreen(onOpenTracker: () => _go(1), epoch: _epoch),
+            TabReveal(active: _index == 1, child: const TrackerScreen()),
+            BudgetsScreen(epoch: _epoch),
+            TabReveal(active: _index == 3, child: const SettingsScreen()),
           ],
         ),
         floatingActionButton: _index < 2
@@ -79,7 +91,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
             : null,
         bottomNavigationBar: NavigationBar(
           selectedIndex: _index,
-          onDestinationSelected: (i) => setState(() => _index = i),
+          onDestinationSelected: _go,
           destinations: const [
             NavigationDestination(
               icon: Icon(Icons.home_outlined),
