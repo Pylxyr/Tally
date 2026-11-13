@@ -197,24 +197,47 @@ void main() {
       expect(p.spentFraction, 0);
     });
 
-    test('last seven days run oldest to newest and include today', () {
-      final today = DateTime(2026, 11, 2);
+    test('the week runs Sunday to Saturday', () {
+      // Friday 13 November 2026.
+      final today = DateTime(2026, 11, 13);
       final txns = [
-        expense(10, DateTime(2026, 10, 27)),
-        expense(20, DateTime(2026, 10, 31)),
-        expense(5, DateTime(2026, 10, 31)),
+        expense(10, DateTime(2026, 11, 7)), // Saturday of the week before
+        expense(20, DateTime(2026, 11, 8)), // Sunday
+        expense(5, DateTime(2026, 11, 8)),
         expense(7, today),
-        expense(99, DateTime(2026, 10, 26)), // too old
+        expense(99, DateTime(2026, 11, 15)), // next Sunday
         income(500, today), // not spending
       ];
-      final days = lastDaysSpending(txns, today);
+      final days = weekSpending(txns, today);
       expect(days, hasLength(7));
-      expect(days.first.day, DateTime(2026, 10, 27));
-      expect(days.last.day, today);
-      expect(days.first.cents, 1000);
-      expect(days[4].cents, 2500);
-      expect(days.last.cents, 700);
+      expect(days.first.day, DateTime(2026, 11, 8));
+      expect(days.first.day.weekday, DateTime.sunday);
+      expect(days.last.day, DateTime(2026, 11, 14));
+      expect(days.last.day.weekday, DateTime.saturday);
+      expect(days.first.cents, 2500);
+      expect(days[5].cents, 700); // Friday
+      expect(days[6].cents, 0); // Saturday, still to come
       expect(days[1].cents, 0);
+    });
+
+    test('week start when today is Sunday or Saturday', () {
+      expect(startOfWeek(DateTime(2026, 11, 8)), DateTime(2026, 11, 8));
+      expect(startOfWeek(DateTime(2026, 11, 14)), DateTime(2026, 11, 8));
+      expect(startOfWeek(DateTime(2026, 11, 9)), DateTime(2026, 11, 8));
+    });
+
+    test('a week can span two months and two years', () {
+      final days = weekSpending([
+        expense(30, DateTime(2026, 11, 29)),
+        expense(40, DateTime(2026, 12, 2)),
+      ], DateTime(2026, 12, 2));
+      expect(days.first.day, DateTime(2026, 11, 29));
+      expect(days.first.cents, 3000);
+      expect(days[3].cents, 4000);
+      expect(days.last.day, DateTime(2026, 12, 5));
+      final newYear = weekSpending(const [], DateTime(2027, 1, 1));
+      expect(newYear.first.day, DateTime(2026, 12, 27));
+      expect(newYear.last.day, DateTime(2027, 1, 2));
     });
 
     test('category totals are ranked largest first', () {
