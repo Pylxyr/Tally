@@ -32,11 +32,17 @@ Built for Flutter 3.50 (Dart 3.14). The UI uses the standalone `material_ui` pac
 git tag v1.0.0 && git push --tags
 ```
 
-The **Release APK** workflow runs: it sets up Java and Flutter, generates the Android project, runs `flutter pub get`, `flutter analyze` and `flutter test`, builds a release APK, names it `tally-1.0.0.apk` and attaches it to a GitHub Release with auto-generated notes.
+The **Release APK** workflow runs: it sets up Java and Flutter, generates the Android project, runs `flutter pub get`, `flutter analyze` and `flutter test`, builds a release APK, names it `tally-1.0.0.apk` and attaches it to a GitHub Release with AI-written release notes (see below).
 
 You can also run it by hand: **Actions → Release APK → Run workflow**. Leave the tag empty to use the version in `pubspec.yaml`, or type one such as `v1.0.1`.
 
 For the next release, use a new tag (`v1.0.1`, and so on). The Android version code comes from the workflow run number, so it always goes up.
+
+### Release notes
+
+The release job runs `tool/release_notes.py`. It reads the commits since the previous `v*` tag, asks Claude to turn them into short Added / Fixed / Changed / Removed notes for app users, and adds a "Full changelog" link and install instructions. If there is no API key, or the request fails, the notes fall back to a plain list of commit subjects, so a release is never blocked (a warning shows in the run). The first release has no earlier tag, so its notes summarise the app from the README and the commits.
+
+Add one repository secret to turn the AI notes on: **`ANTHROPIC_API_KEY`**. To use a different model, set a repository variable `CHANGELOG_MODEL` (default `claude-sonnet-5-5`). Only the release job can see the key, never the build. Write clear commit messages; they are the input.
 
 ## 3. Where the APK appears
 
@@ -84,6 +90,8 @@ In your repo go to **Settings → Secrets and variables → Actions → New repo
 | `ANDROID_KEY_ALIAS` | `tally` (or the alias you chose) |
 | `ANDROID_KEY_PASSWORD` | the key password (optional; defaults to the keystore password) |
 
+Repository secrets belong to one repo, so add them to Tally even if another repo of yours already has the same ones.
+
 With the first three present, the workflow signs the APK with your key. Without them it falls back to debug signing, so the very first release needs no setup. Never commit the `.jks` file (it is in `.gitignore`).
 
 ## Running it locally
@@ -123,7 +131,7 @@ lib/logic/    budget maths, recurring bills, models, CSV (pure Dart, unit tested
 lib/state/    app state and the local JSON store
 lib/ui/       theme, screens, sheets, charts
 test/         unit tests for the budget maths
-tool/         prepare_android.sh
+tool/         prepare_android.sh, release_notes.py
 android_overlay/res/   launcher icon resources
 .github/workflows/release.yml
 ```
