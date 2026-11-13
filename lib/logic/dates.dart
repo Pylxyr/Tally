@@ -16,6 +16,9 @@ int daysInMonth(int year, int month) => DateTime(year, month + 1, 0).day;
 int daysLeftInMonth(DateTime today) =>
     daysInMonth(today.year, today.month) - today.day + 1;
 
+/// The Sunday on or before [day]. Tally's weeks run Sunday to Saturday.
+DateTime startOfWeek(DateTime day) => addDays(day, -(day.weekday % 7));
+
 /// A single number identifying a calendar month, increasing by one per month.
 int monthIndex(DateTime d) => d.year * 12 + d.month - 1;
 
