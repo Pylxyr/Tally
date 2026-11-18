@@ -153,8 +153,13 @@ class EmptyState extends StatelessWidget {
   }
 }
 
-/// Wraps content for a modal bottom sheet: scrolls, clears the keyboard and
-/// the system navigation bar.
+/// Extra room kept below a focused text field inside a sheet, so it scrolls
+/// to sit above the keyboard with the main button still close by.
+const EdgeInsets sheetScrollPadding = EdgeInsets.fromLTRB(20, 20, 20, 120);
+
+/// Wraps content for a modal bottom sheet. The sheet shrinks to the space above
+/// the keyboard, so a focused field always scrolls into view, and it clears the
+/// system navigation bar when the keyboard is closed.
 class SheetBody extends StatelessWidget {
   const SheetBody({super.key, required this.title, required this.children});
 
@@ -164,24 +169,29 @@ class SheetBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(
-        20,
-        0,
-        20,
-        20 + media.viewInsets.bottom + media.padding.bottom,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Semantics(
-            header: true,
-            child: Text(title, style: Theme.of(context).textTheme.titleLarge),
-          ),
-          const SizedBox(height: 16),
-          ...children,
-        ],
+    final keyboard = media.viewInsets.bottom;
+    // The keyboard already covers the navigation bar, so skip that padding then.
+    final navBar = keyboard > 0 ? 0.0 : media.padding.bottom;
+    return Padding(
+      // Shrinks the scroll area itself. Padding inside the scroll view is not
+      // enough: the view would still extend under the keyboard, and Flutter
+      // would think a covered field was visible.
+      padding: EdgeInsets.only(bottom: keyboard),
+      child: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + navBar),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Semantics(
+              header: true,
+              child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+            ),
+            const SizedBox(height: 16),
+            ...children,
+          ],
+        ),
       ),
     );
   }
@@ -236,6 +246,7 @@ class AmountField extends StatelessWidget {
     final style = Theme.of(context).textTheme.displaySmall
         ?.copyWith(fontFeatures: tabularFigures, fontSize: 38);
     return TextField(
+      scrollPadding: sheetScrollPadding,
       controller: controller,
       autofocus: autofocus,
       onChanged: onChanged,

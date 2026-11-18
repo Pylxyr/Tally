@@ -194,6 +194,7 @@ class _TxnSheetState extends State<TxnSheet> {
         ),
         const SizedBox(height: 20),
         TextField(
+          scrollPadding: sheetScrollPadding,
           controller: _note,
           textCapitalization: TextCapitalization.sentences,
           textInputAction: TextInputAction.done,

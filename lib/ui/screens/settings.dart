@@ -8,6 +8,7 @@ import '../../logic/dates.dart';
 import '../../state/app_state.dart';
 import '../sheets/other_sheets.dart';
 import '../widgets/common.dart';
+import 'about.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -136,6 +137,18 @@ class SettingsScreen extends StatelessWidget {
                   onTap: () => _deleteAll(context),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          const SectionTitle('About'),
+          Card(
+            child: ListTile(
+              minTileHeight: 64,
+              leading: const Icon(Icons.info_outline_rounded),
+              title: const Text('About Tally'),
+              subtitle: const Text('Version, privacy and source code'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Navigator.of(context).push(aboutRoute(context)),
             ),
           ),
           Padding(

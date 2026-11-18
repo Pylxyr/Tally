@@ -28,6 +28,23 @@ fi
 sed -i.bak -E "s/android:label=\"[^\"]*\"/android:label=\"$LABEL\"/" "$MANIFEST"
 rm -f "$MANIFEST.bak"
 
+# Lets the About page open https links in the browser (Android 11+ package
+# visibility). Uses the <queries> block that flutter create writes, or adds one.
+# This is not a permission, and the check below still forbids INTERNET.
+if ! grep -q 'android:scheme="https"' "$MANIFEST"; then
+  QUERY='<intent><action android:name="android.intent.action.VIEW"/><data android:scheme="https"/></intent>'
+  if grep -q '<queries>' "$MANIFEST"; then
+    sed -i.bak "s|<queries>|<queries>$QUERY|" "$MANIFEST"
+  else
+    sed -i.bak "s|</manifest>|<queries>$QUERY</queries></manifest>|" "$MANIFEST"
+  fi
+  rm -f "$MANIFEST.bak"
+fi
+if ! grep -q 'android:scheme="https"' "$MANIFEST"; then
+  echo "ERROR: could not add the https link query to $MANIFEST" >&2
+  exit 1
+fi
+
 # Launcher icon: adaptive icon (Android 8+) plus PNGs for older versions.
 cp -R android_overlay/res/. android/app/src/main/res/
 

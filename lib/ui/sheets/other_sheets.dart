@@ -195,6 +195,7 @@ class _CurrencyPickerState extends State<CurrencyPicker> {
         ),
         const SizedBox(height: 12),
         TextField(
+          scrollPadding: sheetScrollPadding,
           controller: _custom,
           maxLength: 4,
           inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'\s'))],
@@ -331,6 +332,7 @@ class _CategorySheetState extends State<_CategorySheet> {
       title: existing == null ? 'New category' : 'Edit category',
       children: [
         TextField(
+          scrollPadding: sheetScrollPadding,
           controller: _name,
           autofocus: existing == null,
           maxLength: 24,
@@ -536,6 +538,7 @@ class _BillSheetState extends State<_BillSheet> {
       title: existing == null ? 'New recurring bill' : 'Edit recurring bill',
       children: [
         TextField(
+          scrollPadding: sheetScrollPadding,
           controller: _name,
           autofocus: existing == null,
           maxLength: 40,
@@ -555,6 +558,7 @@ class _BillSheetState extends State<_BillSheet> {
         ),
         const SizedBox(height: 16),
         TextField(
+          scrollPadding: sheetScrollPadding,
           controller: _day,
           keyboardType: TextInputType.number,
           maxLength: 2,

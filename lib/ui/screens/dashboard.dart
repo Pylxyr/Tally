@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:material_ui/material_ui.dart';
 
 import '../../logic/budget_math.dart';
@@ -128,18 +130,48 @@ class _HeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final state = AppScope.of(context);
+    final budget = AppScope.of(context).settings.monthlyBudgetCents;
+    // Glides between the compact prompt and the full card when a budget is
+    // set or cleared. Both durations are zero under reduce-motion.
+    return AnimatedSize(
+      duration: motion(context, 350),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: AnimatedSwitcher(
+        duration: motion(context, 350),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeIn,
+        transitionBuilder: (child, animation) => FadeTransition(
+          opacity: animation,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.96, end: 1).animate(animation),
+            child: child,
+          ),
+        ),
+        child: budget <= 0
+            ? _banner(context)
+            : KeyedSubtree(key: const ValueKey('hero'), child: _hero(context)),
+      ),
+    );
+  }
+
+  /// One slim line (about 48 dp) that asks for a monthly budget.
+  Widget _banner(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
-    final budget = state.settings.monthlyBudgetCents;
-
-    if (budget <= 0) {
-      // A slim, tappable banner rather than a full-size card.
-      return Semantics(
-        button: true,
-        label: 'Set a monthly budget, to see what you can spend today',
-        excludeSemantics: true,
-        onTap: () => editMonthlyBudget(context),
+    return Semantics(
+      key: const ValueKey('set-budget-banner'),
+      button: true,
+      label: 'Set a monthly budget, to see what you can spend today',
+      excludeSemantics: true,
+      onTap: () => editMonthlyBudget(context),
+      // One gentle pulse after the entrance, then it stays still.
+      child: TweenAnimationBuilder<double>(
+        tween: Tween<double>(begin: 0, end: 1),
+        duration: motion(context, 900),
+        curve: const Interval(0.45, 1, curve: Curves.easeInOut),
+        builder: (context, t, child) =>
+            Transform.scale(scale: 1 + 0.035 * math.sin(math.pi * t), child: child),
         child: Material(
           color: cs.primary,
           borderRadius: BorderRadius.circular(Radii.card),
@@ -147,41 +179,39 @@ class _HeroCard extends StatelessWidget {
           child: InkWell(
             onTap: () => editMonthlyBudget(context),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 64),
+              constraints: const BoxConstraints(minHeight: 48),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(18, 10, 12, 10),
+                padding: const EdgeInsets.fromLTRB(16, 10, 10, 10),
                 child: Row(
                   children: [
-                    Icon(Icons.savings_rounded, color: cs.onPrimary),
-                    const SizedBox(width: 12),
+                    Icon(Icons.savings_rounded, size: 20, color: cs.onPrimary),
+                    const SizedBox(width: 10),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Set a monthly budget',
-                            style: text.titleMedium?.copyWith(
-                              color: cs.onPrimary,
-                            ),
-                          ),
-                          Text(
-                            'See what you can spend today',
-                            style: text.bodySmall?.copyWith(
-                              color: cs.onPrimary,
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        'Set monthly budget',
+                        style: text.titleSmall?.copyWith(color: cs.onPrimary),
                       ),
                     ),
-                    Icon(Icons.chevron_right_rounded, color: cs.onPrimary),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 22,
+                      color: cs.onPrimary,
+                    ),
                   ],
                 ),
               ),
             ),
           ),
         ),
-      );
-    }
+      ),
+    );
+  }
+
+  Widget _hero(BuildContext context) {
+    final state = AppScope.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final budget = state.settings.monthlyBudgetCents;
 
     final today = state.today;
     final txns = state.txns;
