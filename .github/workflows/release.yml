@@ -117,7 +117,18 @@ jobs:
             export KS_PASS="$KEYSTORE_PASSWORD"
             export K_PASS="${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
           else
-            echo "No signing secrets found: using debug signing."
+            # A half-filled setup must not quietly fall back to a throwaway key.
+            if [ -n "$KEYSTORE_BASE64$KEYSTORE_PASSWORD$KEY_ALIAS" ]; then
+              echo "::error::Some signing secrets are set but not all. Add ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD and ANDROID_KEY_ALIAS (see README, section 5)." >&2
+              exit 1
+            fi
+            echo "::warning title=Debug signing::No signing secrets found. This APK is signed with a throwaway key, so it cannot update an earlier Tally. Add the signing secrets (README, section 5)."
+            {
+              echo "## Debug-signed build"
+              echo
+              echo "No signing secrets were found, so these APKs use a throwaway key and **cannot be installed over an earlier Tally**. Add \`ANDROID_KEYSTORE_BASE64\`, \`ANDROID_KEYSTORE_PASSWORD\` and \`ANDROID_KEY_ALIAS\` (README, section 5) once, and every later release will update in place."
+              echo
+            } >> "$GITHUB_STEP_SUMMARY"
             echo "signing=debug" >> "$GITHUB_OUTPUT"
             KS=""
           fi
