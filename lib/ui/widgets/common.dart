@@ -373,6 +373,7 @@ Future<bool> confirm(
   required String title,
   required String message,
   required String confirmLabel,
+  bool destructive = true,
 }) async {
   final result = await showDialog<bool>(
     context: context,
@@ -387,8 +388,8 @@ Future<bool> confirm(
         FilledButton(
           style: FilledButton.styleFrom(
             minimumSize: const Size(64, 48),
-            backgroundColor: Theme.of(ctx).colorScheme.error,
-            foregroundColor: Theme.of(ctx).colorScheme.onError,
+            backgroundColor: destructive ? Theme.of(ctx).colorScheme.error : null,
+            foregroundColor: destructive ? Theme.of(ctx).colorScheme.onError : null,
           ),
           onPressed: () => Navigator.pop(ctx, true),
           child: Text(confirmLabel),

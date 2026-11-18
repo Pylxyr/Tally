@@ -39,6 +39,19 @@ class Store {
     }
   }
 
+  /// Copies the current data file aside, once pending saves have finished. Used
+  /// before a restore replaces everything. Only the latest copy is kept.
+  Future<void> keepSafetyCopy() {
+    _chain = _chain.then((_) async {
+      try {
+        if (await file.exists()) await file.copy('${file.path}.before-import');
+      } catch (_) {
+        // A missing safety copy must not stop a restore the person asked for.
+      }
+    });
+    return _chain;
+  }
+
   /// Queues a save. Writes happen one at a time, via a temp file and rename,
   /// so a crash mid-write cannot leave a half-written data file.
   Future<void> save(AppData data) {

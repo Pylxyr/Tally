@@ -4,7 +4,7 @@ A private expense and budget tracker for Android, built with Flutter.
 
 - **Safe to spend today** on the home screen: (budget minus spending before today) divided by the days left in the month, minus today's spending. It turns coral when negative.
 - Month progress bar with a tick for an even spending pace, spending-by-category donut, this week's spending (Sunday to Saturday), top categories, recent activity.
-- Tracker with month navigation, search and filters. Budgets with optional per-category limits. Custom categories. Recurring bills. CSV export.
+- Tracker with month navigation, search and filters. Budgets with optional per-category limits. Custom categories. Recurring bills. CSV export and import, plus a Tally backup file (.tally) you can restore from.
 - All data stays on the phone, in the app's private storage. No accounts. The release app does not ask for the internet permission.
 
 Built for Flutter 3.50 (Dart 3.14). The UI uses the standalone `material_ui` package, which replaced `package:flutter/material.dart` in this Flutter release.
@@ -59,7 +59,7 @@ Add one repository secret to turn the AI notes on: **`ANTHROPIC_API_KEY`**. To u
 
 Or from a computer with USB debugging on: `adb install tally-1.0.0-arm64-v8a.apk`.
 
-**Important:** without your own signing key (next section) every release is signed with a different throwaway debug key. Android will refuse to install a new release over an older one. Uninstall the old app first (which deletes its data, so export a CSV first), or set up your own key once and every later release will update in place.
+**Important:** without your own signing key (next section) every release is signed with a different throwaway debug key. Android will refuse to install a new release over an older one. Uninstall the old app first (which deletes its data, so use Settings, Back up to a file first and restore it afterwards), or set up your own key once and every later release will update in place.
 
 ## 5. Optional: sign releases with your own key
 
@@ -137,7 +137,7 @@ Things deliberately not done, because each one costs something: dropping 32-bit 
 ## Project layout
 
 ```
-lib/logic/    budget maths, recurring bills, models, CSV (pure Dart, unit tested)
+lib/logic/    budget maths, recurring bills, models, CSV export and import, backup file (pure Dart, unit tested)
 lib/state/    app state and the local JSON store
 lib/ui/       theme, screens, sheets, charts
 test/         unit tests for the budget maths

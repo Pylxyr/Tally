@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 
+import '../logic/backup.dart';
 import '../logic/csv_export.dart';
+import '../logic/csv_import.dart';
 import '../logic/dates.dart';
 import '../logic/defaults.dart';
 import '../logic/ids.dart';
@@ -306,6 +308,39 @@ class AppState extends ChangeNotifier {
   }
 
   String csv() => buildCsv(_data);
+
+  /// Adds what [planCsvImport] worked out. Nothing already stored is changed.
+  void applyCsvImport(CsvImportPlan plan) {
+    _data.categories.addAll(plan.newCategories);
+    _data.txns.addAll(plan.txns);
+    _commit();
+  }
+
+  /// The bytes of a `.tally` backup of everything.
+  List<int> backupBytes() => encodeBackup(_data);
+
+  /// Replaces everything with a restored backup. The current data file is kept
+  /// aside first, and bills that came due since the backup are caught up.
+  Future<void> replaceAllData(AppData incoming) async {
+    await _store.keepSafetyCopy();
+    _data.settings = incoming.settings.copyWith(onboarded: true);
+    _data.categories
+      ..clear()
+      ..addAll(incoming.categories);
+    _data.txns
+      ..clear()
+      ..addAll(incoming.txns);
+    _data.categoryBudgets
+      ..clear()
+      ..addAll(incoming.categoryBudgets);
+    _data.bills
+      ..clear()
+      ..addAll(incoming.bills);
+    lastAddedId = null;
+    ensureFallbackCategories(_data);
+    _applyRecurring();
+    _commit();
+  }
 
   // ---- internals ---------------------------------------------------------
 
